@@ -144,9 +144,9 @@ abstract contract Ownable is Context {
 }
 
 
-contract SCARDust is Context,IERC20, Ownable{
+contract SCARDUST is Context,IERC20, Ownable{
     using Address for address;
-    string private _name = "SCARDust";
+    string private _name = "SCARDUST";
     string private _symbol = "SCRD";
     uint8 private _decimals = 18;
     uint256 totalFeeFortx = 0;
@@ -155,17 +155,18 @@ contract SCARDust is Context,IERC20, Ownable{
     uint256 private swapTreshold =2;
 
     uint256 private currentThreshold = 20; //Once the token value goes up this number can be decreased (To reduce price impact on asset)
-    uint256 private _totalSupply = 10_000_000_000_001*10**_decimals; //1T supply
-    uint256 public requiredTokensToSwap = _totalSupply * swapTreshold /1000; //0.2%
+    uint256 private _totalSupply = 10_000_000_000_002*10**_decimals; //1T supply
+    uint256 public requiredTokensToSwap = 100*10**18; //0.2%
     mapping (address => uint256) private _balances;
     mapping (address => bool) private _excludedFromFees;
     mapping (address => mapping (address => uint256)) private _allowances;
     mapping (address => bool) public automatedMarketMakerPairs;
     address _owner;
-    address payable public marketingAddress = payable(0x42A9acF03b571Bf77753c2fD717C834f3961b9aB);
-    address payable public prizePoolAddress = payable(0x19238913200bE0EEBa5A9e561D4685Fdff544F34);//P2E,ETH FOR STAKING AND TOKENS FOR STAKING
-    address payable public charityAddress = payable(0x9C426C8ED5096E8459E1a0A7f2509F93E5DfB3a6);
-    address payable public gameLiquidityAddress = payable(0x19238913200bE0EEBa5A9e561D4685Fdff544F34);
+
+    address payable public marketingAddress = payable(0x6f313eccF5D074E1bf53D3bbE3F4DaF8cEdE81fA);
+    address payable public prizePoolAddress = payable(0x25273eC4c6e3Eb33008E5bE00F81Cdf14eb7d25a);//P2E,ETH FOR STAKING AND TOKENS FOR STAKING
+    address payable public gameLiquidityAddress = payable(0xA502e3E5d89BD2Bd01c4d18683146A1B5815E1d2);
+
     uint256 maxWalletAmount = _totalSupply*maxWalletTreshold/100; // starting 3%
     uint256 maxTxAmount = _totalSupply*maxTxTreshold/100;
     mapping (address => bool) botWallets;
@@ -332,7 +333,7 @@ contract SCARDust is Context,IERC20, Ownable{
         address recipient,
         uint256 amount
     ) public override returns (bool){
-        require(amount <= _allowances[sender][_msgSender()], "BEP20: transfer amount exceeds allowance");
+        require(amount <= _allowances[sender][_msgSender()], "ERC20: transfer amount exceeds allowance");
 		_transfer(sender, recipient, amount);
 		_approve(sender, _msgSender(), _allowances[sender][_msgSender()] - amount);
 		return true;
@@ -398,15 +399,19 @@ contract SCARDust is Context,IERC20, Ownable{
             return _excludedFromFees[toCheck];
     }
 
+    function blocksPassed() public view returns (uint256){
+        return block.timestamp-block.number;
+    }
+
     
 
     function _transfer(address from, address to, uint256 amount) internal{
         
-        require(from != address(0), "BEP20: transfer from the zero address");
-		require(to != address(0), "BEP20: transfer to the zero address");
-        require(amount > 0,"BEP20: transfered amount must be greater than zero");
+        require(from != address(0), "ERC20: transfer from the zero address");
+		require(to != address(0), "ERC20: transfer to the zero address");
+        require(amount > 0,"ERC20: transfered amount must be greater than zero");
         uint256 senderBalance = _balances[from];
-        require(senderBalance >= amount, "BEP20: transfer amount exceeds balance");
+        require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
         if(tradeEnabled == false){
             require(_liquidityHolders[to] || _liquidityHolders[from],"Cant trade, trade is disabled");
         }
@@ -464,7 +469,7 @@ contract SCARDust is Context,IERC20, Ownable{
                 }
                 //Buy Fees
                 else if(automatedMarketMakerPairs[from] && from != address(_router)) {
-                    if(block.number - _liqAddBlock<snipeBlockAmt){
+                    if(block.number - _liqAddBlock < snipeBlockAmt){
                         botWallets[to] = true;
                         snipersCaught++;
                     }
@@ -499,12 +504,10 @@ contract SCARDust is Context,IERC20, Ownable{
         
     }
     function swapForTokenomics(uint256 balanceToswap) private lockTheSwap{
-        uint256 splitTokenAmount = prizepoolTokens/2;
+        uint256 tokensTotal = mktTokens+charityTokens;
         swapAndLiquify(liqTokens);
-        swapTokensForETHmkt(mktTokens);//swaps and sends to mkt and dev
-        swapForStaking(splitTokenAmount);//swaps half for staking liquidity
-        swapForCharity(charityTokens);//swaps the charity amount
-        sendToPrizePool(splitTokenAmount);//sends tokens only to prizepool address
+        swapTokensForETHmkt(tokensTotal);//swaps and sends to mkt and dev
+        swapForStaking(prizepoolTokens);//swaps half for staking liquidity and sends half to staking address
         sendToGameLiquidity(gameTokens);//sends to game liquidity pool
         emit tokensSwappedDuringTokenomics(balanceToswap);
         mktTokens = 0;
@@ -541,35 +544,24 @@ contract SCARDust is Context,IERC20, Ownable{
 
     }
     function swapForStaking(uint256 amount)private{
-           address[] memory path = new address[](2);
+        uint256 half = amount / 2;
+		uint256 otherHalf = amount - half;
+        address[] memory path = new address[](2);
 		path[0] = address(this);
 		path[1] = _router.WETH();
 		_approve(address(this), address(_router), amount);
 
 		
 		_router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-			amount,
+			half,
 			0, // Accept any amount of ETH.
 			path,
-			prizePoolAddress,
+			marketingAddress,
 			block.timestamp
-		);
+		);  
+        sendToPrizePool(otherHalf);
     }
-     function swapForCharity(uint256 amount)private{
-           address[] memory path = new address[](2);
-		path[0] = address(this);
-		path[1] = _router.WETH();
-		_approve(address(this), address(_router), amount);
-
-		
-		_router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-			amount,
-			0, // Accept any amount of ETH.
-			path,
-			charityAddress,
-			block.timestamp
-		);
-    }
+   
     function unstuckTokens (IERC20 tokenToClear, address payable destination, uint256 amount) public onlyOwner{
         //uint256 contractBalance = tokenToClear.balanceOf(address(this));
         tokenToClear.transfer(destination, amount);
@@ -595,6 +587,7 @@ contract SCARDust is Context,IERC20, Ownable{
         swapAndLiquifyEnabled = true;
     }
     }
+
 
     function swapAndLiquify(uint256 liqTokensPassed) private {
 		uint256 half = liqTokensPassed / 2;
@@ -638,8 +631,8 @@ contract SCARDust is Context,IERC20, Ownable{
 	}
 
     function _approve(address owner,address spender, uint256 amount) internal{
-        require(owner != address(0), "BEP20: approve from the zero address");
-		require(spender != address(0), "BEP20: approve to the zero address");
+        require(owner != address(0), "ERC20: approve from the zero address");
+		require(spender != address(0), "ERC20: approve to the zero address");
 
 		_allowances[owner][spender] = amount;
 		emit Approval(owner, spender, amount);
