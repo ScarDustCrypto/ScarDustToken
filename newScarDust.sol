@@ -704,6 +704,9 @@ contract SCARDUST is Context,IERC20, Ownable{
     function setPrizePoolAddress(address newAddress) external onlyOwner{
         prizePoolAddress = payable(newAddress);
     }
+     function setGameAddress(address newAddress) external onlyOwner{
+        gameLiquidityAddress = payable(newAddress);
+    }
     function setAutomatedMarketMakerPair(address pair, bool value) public onlyOwner {
         require(pair != uniswapV2Pair, "The pair cannot be removed from automatedMarketMakerPairs");
         _setAutomatedMarketMakerPair(pair, value);
