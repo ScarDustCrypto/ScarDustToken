@@ -150,9 +150,9 @@ contract SCARDUST is Context,IERC20, Ownable{
     string private _symbol = "SCRD";
     uint8 private _decimals = 18;
     uint256 totalFeeFortx = 0;
-    uint256 maxWalletTreshold = 5;
-    uint256 maxTxTreshold = 5;
-    uint256 private swapTreshold =2;
+    uint256 maxWalletTreshold = 4;
+    uint256 maxTxTreshold = 4;
+    uint256 private swapTreshold = 2;
 
     uint256 private currentThreshold = 20; //Once the token value goes up this number can be decreased (To reduce price impact on asset)
     uint256 private _totalSupply = 10_000_000_000_002*10**_decimals; //1T supply
